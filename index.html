@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html" charset="utf-8" />
+  <title>Marciano</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./sources/css/style.css">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet"
+    integrity="sha384-4bw+/aepP/YC94hEpVNVgiZdgIC5+VKNBQNGCHeKRQN+PtmoHDEXuppvnDJzQIu9" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
+  <!-- Require the peer dependencies of handpose. -->
+  <script src="https://unpkg.com/@tensorflow/tfjs-core@3.7.0/dist/tf-core.js"></script>
+
+  <!-- You must explicitly require a TF.js backend if you're not using the tfs union bundle. -->
+  <script src="https://unpkg.com/@tensorflow/tfjs-backend-webgl@3.7.0/dist/tf-backend-webgl.js"></script>
+
+  <!-- The main handpose library -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/@tensorflow-models/hand-pose-detection@2.0.0/dist/hand-pose-detection.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.min.js"></script>
+
+  <!-- The fingerpose library -->
+  <script src="https://cdn.jsdelivr.net/npm/fingerpose@0.1.0/dist/fingerpose.min.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      user-select: none;
+    }
+    .video,
+    .debug {
+      padding: 0 20px;
+    }
+
+    table.summary {
+      border: 1px solid #333;
+      border-collapse: collapse;
+    }
+
+    table.summary td,
+    table.summary th {
+      border: 1px solid #333;
+      padding: 5px 8px;
+    }
+
+    #video-container {
+      width: 640px;
+      height: 480px;
+      position: relative;
+    }
+
+    .layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    #pose-video {
+      transform: scaleX(-1);
+    }
+
+    .pose-result {
+      font-size: 100px;
+      text-align: right;
+      padding: 20px 30px 0 0;
+    }
+
+    #pose-result-left {
+      text-align: left;
+    }
+  </style>
+</head>
+
+<body>
+  <h1 class="text-white text-center p-3 m-0 d-flex justify-content-center">JUEGO DEL MARCIANITO</h1>
+
+  <!--Cuadricula-->
+  <div class="container-fluid bg">
+    <div class="board-container">
+      <div class="fila1">
+        <div class="casilla p d-flex justify-content-center align-items-center" id="1" data-casilla="a1"></div>
+        <div class="casilla i d-flex justify-content-center align-items-center" id="2" data-casilla="b1"></div>
+        <div class="casilla p d-flex justify-content-center align-items-center" id="3" data-casilla="c1"></div>
+      </div>
+      <div class="fila2">
+        <div class="casilla i d-flex justify-content-center align-items-center" id="4" data-casilla="a2"></div>
+        <div class="casilla p d-flex justify-content-center align-items-center" id="5" data-casilla="b2"></div>
+        <div class="casilla i d-flex justify-content-center align-items-center" id="6" data-casilla="c2"></div>
+      </div>
+      <div class="fila3">
+        <div class="casilla p d-flex justify-content-center align-items-center" id="7" data-casilla="a3"></div>
+        <div class="casilla i d-flex justify-content-center align-items-center" id="8" data-casilla="b3"></div>
+        <div class="casilla p d-flex justify-content-center align-items-center" id="9" data-casilla="c3"></div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-center align-items-center">
+      <h2 class="text-white m-0">Mueve al marcianito</h2>
+    </div>
+
+    <div class="contbtns p-3">
+      <div class="buttons-container column">
+        <div class="button left img-fluid" onclick="validatePosition('swipeleft')"><img src="./sources/img/arrow-left-square-fill.svg" alt=""></div>
+        <div class="button down img-fluid" onclick="validatePosition('swipedown')"><img src="./sources/img/arrow-down-square-fill.svg" alt=""></div>
+        <div class="button up img-fluid" onclick="validatePosition('swipeup')"><img src="./sources/img/arrow-up-square-fill.svg" alt=""></div>
+        <div class="button right img-fluid" onclick="validatePosition('swiperight')"><img src="./sources/img/arrow-right-square-fill.svg" alt=""></div>
+      </div>
+    </div>
+
+    <!--Boton reiniciar-->
+    <div class="d-flex flex-column justify-content-center align-items-center">
+      <div class="pad bg-secondary rounded-4 w-75">
+        <p></p>
+      </div>
+      <div class="d-flex align-items-center justify-content-center p-4">
+        <button class="btn btn-primary" id="reiniciar">Reiniciar</button>
+      </div>
+    </div>
+
+  <div class="container">
+
+    <div class="video">
+      <div id="video-container">
+        <video id="pose-video" class="layer" playsinline></video>
+        <canvas id="pose-canvas" class="layer"></canvas>
+        <div id="pose-result-left" class="layer pose-result"></div>
+        <br>
+        <div id="pose-result-right" class="layer pose-result"></div>
+      </div>
+    </div>
+
+    <div class="debug">
+      <h2>Left Hand</h2>
+      <table id="summary-left" class="summary">
+        <thead>
+          <tr>
+            <th>Idx</th>
+            <th>Finger</th>
+            <th style="width: 110px">Curl</th>
+            <th style="width: 170px">Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0</td>
+            <td>Thumb</td>
+            <td><span id="curl-0">-</span></td>
+            <td><span id="dir-0">-</span></td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Index</td>
+            <td><span id="curl-1">-</span></td>
+            <td><span id="dir-1">-</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Middle</td>
+            <td><span id="curl-2">-</span></td>
+            <td><span id="dir-2">-</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Ring</td>
+            <td><span id="curl-3">-</span></td>
+            <td><span id="dir-3">-</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Pinky</td>
+            <td><span id="curl-4">-</span></td>
+            <td><span id="dir-4">-</span></td>
+          </tr>
+        </tbody>
+      </table>
+      <br>
+      <h2>Right Hand</h2>
+      <table id="summary-right" class="summary">
+        <thead>
+          <tr>
+            <th>Idx</th>
+            <th>Finger</th>
+            <th style="width: 110px">Curl</th>
+            <th style="width: 170px">Direction</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>0</td>
+            <td>Thumb</td>
+            <td><span id="curl-0">-</span></td>
+            <td><span id="dir-0">-</span></td>
+          </tr>
+          <tr>
+            <td>1</td>
+            <td>Index</td>
+            <td><span id="curl-1">-</span></td>
+            <td><span id="dir-1">-</span></td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Middle</td>
+            <td><span id="curl-2">-</span></td>
+            <td><span id="dir-2">-</span></td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Ring</td>
+            <td><span id="curl-3">-</span></td>
+            <td><span id="dir-3">-</span></td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td>Pinky</td>
+            <td><span id="curl-4">-</span></td>
+            <td><span id="dir-4">-</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <script type="module" src="src/index.js">
+  </script>
+  <script src="src/hammer.min.js"></script>
+
+</body>
+
+</html>
